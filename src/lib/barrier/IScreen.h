@@ -22,6 +22,7 @@
 #include "base/Event.h"
 #include "base/EventTypes.h"
 #include "common/IInterface.h"
+#include "Display.h"
 
 class IClipboard;
 
@@ -66,6 +67,8 @@ public:
     Return the current position of the cursor in \c x and \c y.
     */
     virtual void        getCursorPos(SInt32& x, SInt32& y) const = 0;
+
+    virtual std::vector<Display*> getDisplays() const = 0;
 
     //@}
 };

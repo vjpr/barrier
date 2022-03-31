@@ -21,6 +21,7 @@
 #include "barrier/Screen.h"
 #include "barrier/Clipboard.h"
 #include "base/Log.h"
+#include "platform/OSXScreen.h"
 
 //
 // PrimaryClient
@@ -271,4 +272,15 @@ void
 PrimaryClient::setOptions(const OptionsList& options)
 {
     m_screen->setOptions(options);
+}
+
+std::vector<Display*>
+PrimaryClient::getDisplays() const {
+
+  // TODO(vjpr): Only works for osx!
+  IPlatformScreen* screen = m_screen->getPlatformScreen();
+  OSXScreen* platformScreen = dynamic_cast<OSXScreen*>(screen);
+  std::vector<Display*> displays = platformScreen->m_displays;
+  return displays;
+
 }

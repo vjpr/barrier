@@ -234,6 +234,12 @@ Client::getShape(SInt32& x, SInt32& y, SInt32& w, SInt32& h) const
     m_screen->getShape(x, y, w, h);
 }
 
+std::vector<Display*>
+Client::getDisplays() const
+{
+    // TODO(vjpr):
+}
+
 void
 Client::getCursorPos(SInt32& x, SInt32& y) const
 {

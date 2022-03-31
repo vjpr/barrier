@@ -500,3 +500,12 @@ ClientProxy1_0::ClientClipboard::ClientClipboard() :
 {
     // do nothing
 }
+
+std::vector<Display*>
+ClientProxy1_0::getDisplays() const {
+
+  // TODO(vjpr):
+  std::vector<Display*> vec;
+  return vec;
+
+}

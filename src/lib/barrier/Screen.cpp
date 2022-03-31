@@ -562,4 +562,9 @@ Screen::leaveSecondary()
     m_screen->fakeAllKeysUp();
 }
 
+std::vector<Display*>
+Screen::getDisplays() const {
+  return m_screen->getDisplays();
+}
+
 }

@@ -38,6 +38,7 @@
 #include "base/Log.h"
 #include "base/IEventQueue.h"
 #include "base/TMethodEventJob.h"
+#import "barrier/Display.h"
 
 #include <math.h>
 #include <mach-o/dyld.h>
@@ -244,6 +245,11 @@ OSXScreen::getShape(SInt32& x, SInt32& y, SInt32& w, SInt32& h) const
 	h = m_h;
 }
 
+std::vector<Display*>
+OSXScreen::getDisplays() const {
+  return m_displays;
+}
+
 void
 OSXScreen::getCursorPos(SInt32& x, SInt32& y) const
 {
@@ -270,6 +276,7 @@ OSXScreen::warpCursor(SInt32 x, SInt32 y)
 	CGPoint pos;
 	pos.x = x;
 	pos.y = y;
+        // NOTE: If y is invalid, it sets it to 0.
 	CGWarpMouseCursorPosition(pos);
 
 	// save new cursor position
@@ -1546,6 +1553,21 @@ OSXScreen::updateScreenShape()
 		return;
 	}
 
+        // save displays as generic displays.
+        for (CGDisplayCount i = 0; i < displayCount; ++i) {
+          CGRect bounds = CGDisplayBounds(displays[i]);
+          Display* display = new Display{
+            // TODO(vjpr): Display numbers are simply the enumeration order. This is not stable between reboots I don't think.
+            i,
+            // --
+          (SInt32)bounds.origin.x,
+          (SInt32)bounds.origin.y,
+          (SInt32)bounds.size.width,
+          (SInt32)bounds.size.height};
+          m_displays.push_back(display);
+        }
+
+
 	// get smallest rect enclosing all display rects
 	CGRect totalBounds = CGRectZero;
 	for (CGDisplayCount i = 0; i < displayCount; ++i) {
@@ -1566,6 +1588,7 @@ OSXScreen::updateScreenShape()
   m_yCenter = (rect.origin.y + rect.size.height) / 2;
 
 	delete[] displays;
+
 	// We want to notify the peer screen whether we are primary screen or not
 	sendEvent(m_events->forIScreen().shapeChanged());
 

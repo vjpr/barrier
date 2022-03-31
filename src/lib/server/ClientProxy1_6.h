@@ -31,6 +31,7 @@ public:
 
     virtual void        setClipboard(ClipboardID id, const IClipboard* clipboard);
     virtual bool        recvClipboard();
+    //virtual std::vector<Display*> getDisplays();
 
 private:
     void                handleClipboardSendingEvent(const Event&, void*);

@@ -42,6 +42,7 @@
 #include "base/IEventQueue.h"
 #include "base/Log.h"
 #include "base/TMethodEventJob.h"
+#include "platform/OSXScreen.h"
 
 #include <cstring>
 #include <cstdlib>
@@ -456,7 +457,8 @@ Server::switchScreen(BaseClientProxy* dst,
 	{
 		SInt32 dx, dy, dw, dh;
 		dst->getShape(dx, dy, dw, dh);
-		assert(x >= dx && y >= dy && x < dx + dw && y < dy + dh);
+                // TODO(vjpr): This doesn't make sense anymore when we use current display bounds.
+		//assert(x >= dx && y >= dy && x < dx + dw && y < dy + dh);
 	}
 #endif
 	assert(m_active != NULL);
@@ -640,9 +642,38 @@ Server::getNeighbor(BaseClientProxy* src,
 	}
 }
 
+// TODO(vjpr): For now its just bottom-most.
+// For a given direction, find the display furthest in that direction.
+Display* findDisplay(BaseClientProxy* dst, SInt32& x, SInt32& y) {
+
+  Display* found = NULL;
+
+  std::vector<Display*> displays = dst->getDisplays();
+
+  LOG((CLOG_DEBUG1 "findDisplay - mouse pos %d,%d", x, y));
+
+  // Get display that mouse is on.
+  for (Display* display : displays) {
+    //LOG((CLOG_DEBUG1 "check x %d <= %d <= %d true=%d", display->x, x, display->x + display->width, display->x <= x <= (display->x + display->width)));
+    if (display->x <= x && x <= (display->x + display->width)) {
+      //LOG((CLOG_DEBUG1 "check y %d <= %d <= %d", display->y, y, display->y + display->width));
+      if (found) {
+        if (display->y < found->y) {
+          found = display;
+        }
+      } else {
+        found = display;
+      }
+    }
+  }
+
+  return found;
+
+}
+
 BaseClientProxy*
 Server::mapToNeighbor(BaseClientProxy* src,
-				EDirection srcSide, SInt32& x, SInt32& y) const
+				EDirection srcSide, SInt32& x, SInt32& y, Display* currentDisplay) const
 {
 	// note -- must be locked on entry
 
@@ -698,8 +729,18 @@ Server::mapToNeighbor(BaseClientProxy* src,
 		break;
 
 	case kTop:
-		y -= dy;
-		while (dst != NULL) {
+                // vjpr
+                // Initially:
+                // y = mouse cursor position relative to primary display top-left corner.
+                // dy = highest display's top-left corner relative to primary display top-left corner. That is, (0,0) in the "canonical screen space".
+		//y -= dy;
+                // vjpr: We need to get y relative to our screen instead.
+                if (currentDisplay) {
+                  y = y - currentDisplay->y;
+                } else {
+                  y -= dy;
+                }
+                while (dst != NULL) {
 			lastGoodScreen = dst;
 			lastGoodScreen->getShape(dx, dy, dw, dh);
 			y += dh;
@@ -713,21 +754,36 @@ Server::mapToNeighbor(BaseClientProxy* src,
 		y += dy;
 		break;
 
-	case kBottom:
-		y -= dy;
-		while (dst != NULL) {
-			y -= dh;
-			lastGoodScreen = dst;
-			lastGoodScreen->getShape(dx, dy, dw, dh);
-			if (y < dh) {
-				break;
-			}
-			LOG((CLOG_DEBUG2 "skipping over screen %s", getName(dst).c_str()));
-			dst = getNeighbor(lastGoodScreen, srcSide, x, y);
-		}
-		assert(lastGoodScreen != NULL);
-		y += dy;
-		break;
+	case kBottom: {
+          y -= dy;
+          while (dst != NULL) {
+            // vjpr
+            // y = pixels we need to position cursor in dest screen.
+            y -= dh;
+            lastGoodScreen = dst;
+            lastGoodScreen->getShape(dx, dy, dw, dh);
+            if (y < dh) {
+              break;
+            }
+            LOG((CLOG_DEBUG2 "skipping over screen %s", getName(dst).c_str()));
+            dst = getNeighbor(lastGoodScreen, srcSide, x, y);
+          }
+          assert(lastGoodScreen != NULL);
+          // vjpr: `dy` is the top-left of all merged display bounds.
+          // Instead, we want to look at `x`, find the top-most dest display, then offset `y` from this display's origin.
+
+          // y += dy;
+
+          // TODO(vjpr): Have to add ability to read displays from dest.
+          auto display = findDisplay(dst, x, y);
+          if (!display) {
+            // TODO(vjpr): Shouldn't happen.
+            y += dy;
+          }
+          y = y + display->y;
+
+          break;
+        }
 
 	case kNoDirection:
 		assert(0 && "bad direction");
@@ -1733,6 +1789,9 @@ Server::onMouseUp(ButtonID id)
 	}
 }
 
+#import <CoreGraphics/CGGeometry.h>
+#import <CoreGraphics/CGDirectDisplay.h>
+
 bool
 Server::onMouseMovePrimary(SInt32 x, SInt32 y)
 {
@@ -1776,6 +1835,43 @@ Server::onMouseMovePrimary(SInt32 x, SInt32 y)
 		yc = ay + ah - 1;
 	}
 
+        // --------------------
+        // TODO(vjpr):
+
+        // TODO(vjpr): This CG function call is too slow! Adds lag.
+        //uint32_t displayCount = 0;
+        //uint32_t displayID;
+        //CGGetDisplaysWithPoint(CGPointMake(x, y), 1, &displayID, &displayCount);
+        //LOG((CLOG_DEBUG4 "onMouseMovePrimary displayID %d", displayID));
+        // ---
+
+        Display* currentDisplay = NULL;
+
+        // TODO(vjpr): Assumes OSX is always primary screen. Maybe this will break things.
+        OSXScreen* screen = dynamic_cast<OSXScreen*>(m_screen->getPlatformScreen());
+        std::vector<Display*> displays = screen->m_displays;
+
+        //LOG((CLOG_DEBUG1 "mouse pos %d,%d", x, y));
+
+        // Get display that mouse is on.
+        for (Display* display : displays) {
+          //LOG((CLOG_DEBUG1 "check x %d <= %d <= %d true=%d", display->x, x, display->x + display->width, display->x <= x <= (display->x + display->width)));
+          if (display->x <= x && x <= (display->x + display->width)) {
+            //LOG((CLOG_DEBUG1 "check y %d <= %d <= %d", display->y, y, display->y + display->width));
+            if (display->y <= y && y <= (display->y + display->height)) {
+              //LOG((CLOG_DEBUG1 "match x=%d y=%d w=%d h=%d", display->x, display->y, display->width, display->height));
+              currentDisplay = display;
+            }
+          }
+        }
+
+        //LOG((CLOG_DEBUG1 "currentDisplay x=%d,y=%d,w=%d,h=%d", currentDisplay->x, currentDisplay->y, currentDisplay->width, currentDisplay->height));
+
+        ax = currentDisplay->x;
+        ay = currentDisplay->y;
+
+        // --------------------
+
 	// see if we should change screens
 	// when the cursor is in a corner, there may be a screen either
 	// horizontally or vertically.  check both directions.
@@ -1783,19 +1879,36 @@ Server::onMouseMovePrimary(SInt32 x, SInt32 y)
 	SInt32 xh = x, yv = y;
 	if (x < ax + zoneSize) {
 		xh  -= zoneSize;
-		dirh = kLeft;
+		//dirh = kLeft;
 	}
 	else if (x >= ax + aw - zoneSize) {
 		xh  += zoneSize;
-		dirh = kRight;
+		//dirh = kRight;
 	}
 	if (y < ay + zoneSize) {
 		yv  -= zoneSize;
-		dirv = kTop;
+
+                // Is another display above?
+                for (Display* display : displays) {
+                    if (display->displayId == currentDisplay->displayId) continue; // Skip current monitor.
+                    SInt32 x0 = display->x;
+                    SInt32 y0 = display->y + display->height;
+                    SInt32 x1 = display->x + display->width;
+                    SInt32 y1 = display->y;
+                    if (y0 - 1 == display->y) {
+                      // This display is directly above. Don't switch screen.
+                      break;
+                    }
+                    if (x0 < x && x > x1) {
+                      // The cursor is within the x bounds.
+                      dirv = kTop;
+                    }
+                }
+
 	}
 	else if (y >= ay + ah - zoneSize) {
 		yv  += zoneSize;
-		dirv = kBottom;
+		//dirv = kBottom;
 	}
 	if (dirh == kNoDirection && dirv == kNoDirection) {
 		// still on local screen
@@ -1814,7 +1927,7 @@ Server::onMouseMovePrimary(SInt32 x, SInt32 y)
 		x = xs[i], y = ys[i];
 
 		// get jump destination
-		BaseClientProxy* newScreen = mapToNeighbor(m_active, dir, x, y);
+		BaseClientProxy* newScreen = mapToNeighbor(m_active, dir, x, y, currentDisplay);
 
 		// should we switch or not?
 		if (isSwitchOkay(newScreen, dir, x, y, xc, yc)) {
@@ -2005,7 +2118,7 @@ Server::onMouseMoveSecondary(SInt32 dx, SInt32 dy)
 		}
 
 		// try to switch screen.  get the neighbor.
-		newScreen = mapToNeighbor(m_active, dir, m_x, m_y);
+		newScreen = mapToNeighbor(m_active, dir, m_x, m_y, NULL);
 
 		// see if we should switch
 		if (!isSwitchOkay(newScreen, dir, m_x, m_y, xc, yc)) {

@@ -232,7 +232,7 @@ private:
     // cross multiple screens.  if there is no suitable screen then
     // return NULL and x,y are not modified.
     BaseClientProxy*    mapToNeighbor(BaseClientProxy*, EDirection,
-                            SInt32& x, SInt32& y) const;
+                            SInt32& x, SInt32& y, Display*) const;
 
     // adjusts x and y or neither to avoid ending up in a jump zone
     // after entering the client in the given direction.

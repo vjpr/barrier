@@ -99,3 +99,11 @@ ClientProxy1_6::recvClipboard()
 
     return true;
 }
+
+std::vector<Display*> getDisplays() {
+
+  // TODO(vjpr):
+  std::vector<Display*> vec;
+  return vec;
+
+}

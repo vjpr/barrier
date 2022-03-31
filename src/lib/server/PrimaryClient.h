@@ -122,6 +122,7 @@ public:
     virtual void        getShape(SInt32& x, SInt32& y,
                             SInt32& width, SInt32& height) const;
     virtual void        getCursorPos(SInt32& x, SInt32& y) const;
+    virtual std::vector<Display*> getDisplays() const;
 
     // IClient overrides
     virtual void        enter(SInt32 xAbs, SInt32 yAbs,

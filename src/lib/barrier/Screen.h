@@ -301,6 +301,7 @@ public:
     virtual void        getShape(SInt32& x, SInt32& y,
                             SInt32& width, SInt32& height) const;
     virtual void        getCursorPos(SInt32& x, SInt32& y) const;
+    virtual std::vector<Display*> getDisplays() const;
 
     IPlatformScreen*    getPlatformScreen() { return m_screen; }
 
